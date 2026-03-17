@@ -1,0 +1,381 @@
+---
+# ============================================================
+# playbook.yml — Playbook principal de despliegue
+# Caso Práctico 2 — UNIR DevOps Azure
+#
+# Plays:
+#   1. Construcción y subida de imágenes al ACR (localhost)
+#   2. Configuración de la VM y despliegue del servidor web con Podman
+#   3. Despliegue de Jenkins en AKS
+#
+# Uso:
+#   ansible-playbook -i hosts playbook.yml \
+#     -e acr_name=<nombre_acr> \
+#     -e acr_password='<password>'
+# ============================================================
+
+# ============================================================
+# PLAY 1 — Construcción y subida de imágenes al ACR
+# ============================================================
+- name: Construir y subir imágenes al ACR
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    acr_name: "acrcasopractico2"
+    acr_login_server: "{{ acr_name }}.azurecr.io"
+    acr_username: "{{ acr_name }}"
+    acr_password: "{{ lookup('env', 'ACR_PASSWORD') }}"
+    image_tag: "casopractico2"
+    podman_image_context: "{{ playbook_dir }}/docker/webapp-podman"
+    k8s_image_context: "{{ playbook_dir }}/docker/webapp-k8s"
+
+  tasks:
+    - name: Autenticarse en el ACR
+      containers.podman.podman_login:
+        registry: "{{ acr_login_server }}"
+        username: "{{ acr_username }}"
+        password: "{{ acr_password }}"
+
+    - name: Construir imagen webapp-podman
+      containers.podman.podman_image:
+        name: "{{ acr_login_server }}/webapp-podman:{{ image_tag }}"
+        path: "{{ podman_image_context }}"
+        state: build
+        force: true
+
+    - name: Subir imagen webapp-podman al ACR
+      containers.podman.podman_image:
+        name: "{{ acr_login_server }}/webapp-podman:{{ image_tag }}"
+        push: true
+        push_args:
+          dest: "{{ acr_login_server }}/webapp-podman:{{ image_tag }}"
+
+    - name: Construir imagen webapp-k8s (Jenkins)
+      containers.podman.podman_image:
+        name: "{{ acr_login_server }}/webapp-k8s:{{ image_tag }}"
+        path: "{{ k8s_image_context }}"
+        state: build
+        force: true
+
+    - name: Subir imagen webapp-k8s al ACR
+      containers.podman.podman_image:
+        name: "{{ acr_login_server }}/webapp-k8s:{{ image_tag }}"
+        push: true
+        push_args:
+          dest: "{{ acr_login_server }}/webapp-k8s:{{ image_tag }}"
+
+# ============================================================
+# PLAY 2 — Configuración de la VM y despliegue con Podman
+# ============================================================
+- name: Configurar VM y desplegar servidor web con Podman
+  hosts: vm_azure
+  become: true
+
+  vars:
+    acr_name: "acrcasopractico2"
+    acr_login_server: "{{ acr_name }}.azurecr.io"
+    acr_username: "{{ acr_name }}"
+    acr_password: "{{ lookup('env', 'ACR_PASSWORD') }}"
+    image_tag: "casopractico2"
+    container_name: "webapp-podman"
+    vm_hostname: "vm-casopractico2"
+    vm_timezone: "Europe/Madrid"
+
+  tasks:
+    # ---- Configuración del sistema ----
+
+    - name: Establecer hostname de la VM
+      ansible.builtin.hostname:
+        name: "{{ vm_hostname }}"
+
+    - name: Configurar zona horaria
+      community.general.timezone:
+        name: "{{ vm_timezone }}"
+
+    # ---- Instalación de paquetes ----
+
+    - name: Instalar Podman
+      ansible.builtin.dnf:
+        name: podman
+        state: present
+
+    - name: Instalar firewalld
+      ansible.builtin.dnf:
+        name: firewalld
+        state: present
+
+    - name: Iniciar y habilitar firewalld
+      ansible.builtin.systemd:
+        name: firewalld
+        state: started
+        enabled: true
+
+    # ---- Configuración del firewall ----
+
+    - name: Abrir puerto 80 en el firewall
+      ansible.posix.firewalld:
+        port: 80/tcp
+        permanent: true
+        state: enabled
+        immediate: true
+
+    - name: Abrir puerto 443 en el firewall
+      ansible.posix.firewalld:
+        port: 443/tcp
+        permanent: true
+        state: enabled
+        immediate: true
+
+    # ---- Autenticación y descarga de la imagen ----
+
+    - name: Autenticarse en el ACR desde la VM
+      containers.podman.podman_login:
+        registry: "{{ acr_login_server }}"
+        username: "{{ acr_username }}"
+        password: "{{ acr_password }}"
+      become_user: root
+
+    - name: Descargar imagen webapp-podman desde el ACR
+      containers.podman.podman_image:
+        name: "{{ acr_login_server }}/webapp-podman:{{ image_tag }}"
+        state: present
+
+    # ---- Despliegue del contenedor ----
+
+    - name: Eliminar contenedor existente si lo hubiera
+      containers.podman.podman_container:
+        name: "{{ container_name }}"
+        state: absent
+
+    - name: Ejecutar contenedor webapp-podman con Podman
+      containers.podman.podman_container:
+        name: "{{ container_name }}"
+        image: "{{ acr_login_server }}/webapp-podman:{{ image_tag }}"
+        state: started
+        ports:
+          - "443:443"
+          - "80:80"
+        restart_policy: "always"
+        detach: true
+
+    # ---- Servicio systemd para persistencia entre reinicios ----
+
+    - name: Crear directorio de unidades systemd
+      ansible.builtin.file:
+        path: /etc/systemd/system
+        state: directory
+        mode: '0755'
+
+    - name: Generar unidad systemd para el contenedor
+      ansible.builtin.shell: |
+        podman generate systemd --name {{ container_name }} \
+          --restart-policy=always \
+          --files \
+          --new
+      args:
+        chdir: /etc/systemd/system
+
+    - name: Recargar el demonio systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Habilitar e iniciar el servicio del contenedor
+      ansible.builtin.systemd:
+        name: "container-{{ container_name }}"
+        enabled: true
+        state: started
+
+    # ---- Verificación ----
+
+    - name: Esperar a que el puerto 443 esté disponible
+      ansible.builtin.wait_for:
+        port: 443
+        host: "{{ ansible_host }}"
+        delay: 5
+        timeout: 30
+      delegate_to: localhost
+      become: false
+
+    - name: Mostrar URL de acceso
+      ansible.builtin.debug:
+        msg: "Servidor web accesible en https://{{ ansible_host }}/ (usuario: admin / contraseña: admin123)"
+
+# ============================================================
+# PLAY 3 — Despliegue de Jenkins en AKS
+# ============================================================
+- name: Desplegar Jenkins en AKS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    acr_name: "acrcasopractico2"
+    acr_login_server: "{{ acr_name }}.azurecr.io"
+    acr_username: "{{ acr_name }}"
+    acr_password: "{{ lookup('env', 'ACR_PASSWORD') }}"
+    image_tag: "casopractico2"
+    k8s_namespace: "casopractico2"
+    kubeconfig: "{{ lookup('env', 'HOME') }}/.kube/config"
+
+  tasks:
+    # ---- Namespace ----
+
+    - name: Crear namespace de Kubernetes
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ k8s_namespace }}"
+            labels:
+              project: casopractico2
+
+    # ---- Secreto para acceso al ACR ----
+
+    - name: Crear secreto de acceso al ACR en AKS
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: acr-secret
+            namespace: "{{ k8s_namespace }}"
+          type: kubernetes.io/dockerconfigjson
+          data:
+            .dockerconfigjson: "{{ {'auths': {acr_login_server: {'username': acr_username, 'password': acr_password, 'auth': (acr_username + ':' + acr_password) | b64encode}}} | to_json | b64encode }}"
+
+    # ---- Almacenamiento persistente ----
+
+    - name: Crear PersistentVolumeClaim para Jenkins
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: jenkins-pvc
+            namespace: "{{ k8s_namespace }}"
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            storageClassName: managed-csi
+            resources:
+              requests:
+                storage: 8Gi
+
+    # ---- Despliegue ----
+
+    - name: Crear Deployment de Jenkins
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: jenkins
+            namespace: "{{ k8s_namespace }}"
+            labels:
+              app: jenkins
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: jenkins
+            template:
+              metadata:
+                labels:
+                  app: jenkins
+              spec:
+                imagePullSecrets:
+                  - name: acr-secret
+                initContainers:
+                  - name: fix-permissions
+                    image: busybox
+                    command: ["sh", "-c", "chown -R 1000:1000 /var/jenkins_home"]
+                    volumeMounts:
+                      - name: jenkins-data
+                        mountPath: /var/jenkins_home
+                containers:
+                  - name: jenkins
+                    image: "{{ acr_login_server }}/webapp-k8s:{{ image_tag }}"
+                    ports:
+                      - containerPort: 8080
+                      - containerPort: 50000
+                    volumeMounts:
+                      - name: jenkins-data
+                        mountPath: /var/jenkins_home
+                    resources:
+                      requests:
+                        memory: "512Mi"
+                        cpu: "250m"
+                      limits:
+                        memory: "1Gi"
+                        cpu: "500m"
+                volumes:
+                  - name: jenkins-data
+                    persistentVolumeClaim:
+                      claimName: jenkins-pvc
+
+    # ---- Servicio LoadBalancer ----
+
+    - name: Crear servicio LoadBalancer para Jenkins
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: jenkins-svc
+            namespace: "{{ k8s_namespace }}"
+          spec:
+            type: LoadBalancer
+            selector:
+              app: jenkins
+            ports:
+              - name: http
+                port: 80
+                targetPort: 8080
+              - name: agent
+                port: 50000
+                targetPort: 50000
+
+    # ---- Verificación ----
+
+    - name: Esperar a que el despliegue de Jenkins esté disponible
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Deployment
+        name: jenkins
+        namespace: "{{ k8s_namespace }}"
+        wait: true
+        wait_condition:
+          type: Available
+          status: "True"
+        wait_timeout: 300
+
+    - name: Obtener IP externa del LoadBalancer
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Service
+        name: jenkins-svc
+        namespace: "{{ k8s_namespace }}"
+      register: jenkins_svc
+      until: >
+        jenkins_svc.resources | length > 0 and
+        jenkins_svc.resources[0].status.loadBalancer.ingress is defined and
+        jenkins_svc.resources[0].status.loadBalancer.ingress | length > 0
+      retries: 20
+      delay: 15
+
+    - name: Mostrar URL de Jenkins
+      ansible.builtin.debug:
+        msg: "Jenkins accesible en http://{{ jenkins_svc.resources[0].status.loadBalancer.ingress[0].ip }}/"

@@ -1,0 +1,11 @@
+# ============================================================
+# hosts — Inventario Ansible
+# Caso Práctico 2 — UNIR DevOps Azure
+# ============================================================
+
+[vm_azure]
+vm1 ansible_host=158.158.73.248 ansible_user=azureuser ansible_ssh_private_key_file=~/.ssh/casopractico2
+
+[vm_azure:vars]
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+ansible_python_interpreter=/usr/bin/python3

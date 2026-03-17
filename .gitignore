@@ -1,0 +1,70 @@
+# ============================================================
+# .gitignore — Caso Práctico 2 — UNIR DevOps Azure
+# ============================================================
+
+# Estado y directorios locales de Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+terraform.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+crash.log
+crash.*.log
+
+# Ficheros de plan de Terraform (pueden contener datos sensibles)
+*.tfplan
+
+# Ficheros de vault y credenciales de Ansible
+*.vault_pass
+ansible/vault_password
+ansible/.vault_pass
+
+# Claves SSH (nunca se deben versionar)
+*.pem
+id_rsa
+id_ed25519
+*.key
+
+# Entornos virtuales de Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Ficheros generados por el sistema operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+
+# Ficheros de editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Kubeconfig (puede contener credenciales sensibles)
+kubeconfig
+*.kubeconfig
+
+# Ficheros de log
+*.log
+
+# Documentación del enunciado
+STEPS.md
+
+# Carpetas de informe y diagramas (entrega aparte)
+informe/
+diagramas/
+
+# Archivos de reintentos de Ansible
+*.retry

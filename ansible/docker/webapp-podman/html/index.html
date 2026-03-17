@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UNIR — Caso Práctico 2 | Podman Web Server</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e0e0e0;
+        }
+        .card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 48px 56px;
+            max-width: 640px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        .badge {
+            display: inline-block;
+            background: #e94560;
+            color: #fff;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 4px 14px;
+            border-radius: 20px;
+            margin-bottom: 24px;
+        }
+        h1 { font-size: 2rem; margin-bottom: 8px; color: #fff; }
+        h2 { font-size: 1.1rem; font-weight: 400; color: #a0c4ff; margin-bottom: 32px; }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 32px;
+        }
+        .info-item {
+            background: rgba(255,255,255,0.07);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .info-item .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #a0c4ff; margin-bottom: 6px; }
+        .info-item .value { font-size: 1rem; font-weight: 600; color: #fff; }
+        .footer { margin-top: 40px; font-size: 0.8rem; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <span class="badge">Authenticated ✓</span>
+        <h1>Caso Práctico 2</h1>
+        <h2>UNIR — Automatización de despliegues en entornos Cloud</h2>
+        <p>Servidor web desplegado con <strong>Podman</strong> sobre una VM Linux en <strong>Azure</strong>.<br/>
+        La imagen se ha construido y publicado en <strong>Azure Container Registry (ACR)</strong>.</p>
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="label">Servidor web</div>
+                <div class="value">Nginx (Alpine)</div>
+            </div>
+            <div class="info-item">
+                <div class="label">Gestión</div>
+                <div class="value">Podman + systemd</div>
+            </div>
+            <div class="info-item">
+                <div class="label">Seguridad</div>
+                <div class="value">HTTPS + htpasswd</div>
+            </div>
+            <div class="info-item">
+                <div class="label">Certificado</div>
+                <div class="value">x.509 autofirmado</div>
+            </div>
+        </div>
+        <div class="footer">Infraestructura creada con Terraform · Configurada con Ansible</div>
+    </div>
+</body>
+</html>
