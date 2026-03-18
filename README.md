@@ -32,12 +32,12 @@ Nodo de control (local)
 ├── ansible/
 │   ├── playbook.yml       # 3 plays: build imágenes, configurar VM, desplegar AKS
 │   ├── deploy.sh          # Script orquestador (lee outputs Terraform y lanza el playbook)
-│   ├── hosts              # Inventario (IP de la VM)
+│   ├── hosts              # Inventario (FQDN de la VM)
 │   └── docker/
 │       ├── webapp-podman/ # Imagen Nginx + TLS autofirmado + htpasswd
 │       └── webapp-k8s/    # Imagen Jenkins LTS
-├── diagramas/             # Diagramas de arquitectura
-└── informe/               # Informe del proyecto en HTML
+├── LICENSE
+└── README.md
 ```
 
 ---
@@ -90,3 +90,22 @@ El script lee automáticamente los outputs de Terraform, actualiza el inventario
 cd terraform
 terraform destroy
 ```
+
+---
+
+## Acceso a las aplicaciones
+
+Las URLs son estables entre despliegues gracias a los DNS labels de Azure:
+
+| Aplicación | URL | Credenciales |
+|---|---|---|
+| Nginx (VM + Podman) | `https://casopractico2vm700768.spaincentral.cloudapp.azure.com/` | admin / admin123 |
+| Jenkins (AKS) | `http://casopractico2jenkins700768.spaincentral.cloudapp.azure.com/` | contraseña inicial en `/var/jenkins_home/secrets/initialAdminPassword` |
+
+---
+
+## Notas
+
+- La región `spaincentral` es la única permitida por la suscripción Azure for Students.
+- Azure no admite claves SSH ed25519: se requiere RSA 4096 (`ssh-keygen -t rsa -b 4096 -f ~/.ssh/casopractico2`).
+- El DNS label de Jenkins se asigna automáticamente por el playbook tras crear el LoadBalancer.
