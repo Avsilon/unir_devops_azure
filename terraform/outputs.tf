@@ -28,6 +28,11 @@ output "vm_public_ip" {
   value       = azurerm_public_ip.vm_pip.ip_address
 }
 
+output "vm_fqdn" {
+  description = "FQDN estable de la VM (no cambia entre despliegues)"
+  value       = azurerm_public_ip.vm_pip.fqdn
+}
+
 # ---- AKS ----
 
 output "kube_config" {

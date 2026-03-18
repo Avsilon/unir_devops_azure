@@ -43,6 +43,7 @@ resource "azurerm_public_ip" "vm_pip" {
   location            = azurerm_resource_group.rg.location
   allocation_method   = "Static"
   sku                 = "Standard"
+  domain_name_label   = "casopractico2vm700768"
   tags                = var.common_tags
 }
 

@@ -57,6 +57,8 @@ cd "${TERRAFORM_DIR}"
 VM_PUBLIC_IP=$(terraform output -raw vm_public_ip 2>/dev/null) \
     || error "No se pudo leer vm_public_ip. ¿Has ejecutado 'terraform apply'?"
 
+VM_FQDN=$(terraform output -raw vm_fqdn 2>/dev/null) || VM_FQDN="${VM_PUBLIC_IP}"
+
 ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server 2>/dev/null) \
     || error "No se pudo leer acr_login_server."
 
@@ -77,6 +79,7 @@ RG_NAME=$(terraform show -json 2>/dev/null \
 cd "${SCRIPT_DIR}"
 
 info "IP pública VM    : ${VM_PUBLIC_IP}"
+info "FQDN VM          : ${VM_FQDN}"
 info "ACR Login Server : ${ACR_LOGIN_SERVER}"
 info "Grupo de recursos: ${RG_NAME}"
 
@@ -112,6 +115,6 @@ ansible-playbook \
 
 info "============================================================"
 info "Despliegue completado."
-info "  Servidor web Podman : https://${VM_PUBLIC_IP}/ (usuario: admin / contraseña: admin123)"
-info "  Jenkins en AKS      : Consulta la salida del playbook para la IP del LoadBalancer"
+info "  Servidor web Podman : https://${VM_FQDN}/ (usuario: admin / contraseña: admin123)"
+info "  Jenkins en AKS      : http://casopractico2jenkins700768.spaincentral.cloudapp.azure.com/"
 info "============================================================"

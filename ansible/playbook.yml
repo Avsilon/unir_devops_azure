@@ -376,6 +376,24 @@
       retries: 20
       delay: 15
 
+    # Obtener el nombre del recurso de IP pública que AKS creó para el LoadBalancer
+    - name: Obtener nombre de la IP pública del LoadBalancer en Azure
+      ansible.builtin.command: >
+        az network public-ip list
+        --query "[?ipAddress=='{{ jenkins_svc.resources[0].status.loadBalancer.ingress[0].ip }}'].{name:name,rg:resourceGroup}"
+        -o tsv
+      register: jenkins_pip_info
+      changed_when: false
+
+    - name: Asignar DNS label fijo a la IP del LoadBalancer de Jenkins
+      ansible.builtin.command: >
+        az network public-ip update
+        --name {{ jenkins_pip_info.stdout.split('\t')[0] }}
+        --resource-group {{ jenkins_pip_info.stdout.split('\t')[1] }}
+        --dns-name casopractico2jenkins700768
+      when: jenkins_pip_info.stdout != ""
+      changed_when: true
+
     - name: Mostrar URL de Jenkins
       ansible.builtin.debug:
-        msg: "Jenkins accesible en http://{{ jenkins_svc.resources[0].status.loadBalancer.ingress[0].ip }}/"
+        msg: "Jenkins accesible en http://casopractico2jenkins700768.spaincentral.cloudapp.azure.com/"
